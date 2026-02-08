@@ -5,7 +5,7 @@ import { syncService } from './services/syncService';
 import RecipeList from './components/RecipeList';
 import ShoppingList from './components/ShoppingList';
 import RecipeHistory from './components/RecipeHistory';
-import { Utensils, ShoppingCart, BookHeart, Sparkles, ChevronDown, Check, Cloud, CloudOff, LogOut, Key, CloudUpload, CloudDownload } from 'lucide-react';
+import { Utensils, ShoppingCart, BookHeart, Sparkles, ChevronDown, Check, Cloud, CloudOff, LogOut, Key, CloudUpload, CloudDownload, Edit2 } from 'lucide-react';
 
 const GUIDELINE_OPTIONS = [
   'Kid Friendly', 'Healthy', 'Vegetarian', 'Mediterranean', 'Asian', 'Mexican', 
@@ -15,7 +15,17 @@ const GUIDELINE_OPTIONS = [
 const App: React.FC = () => {
   // --- State ---
   const [activeTab, setActiveTab] = useState<'plan' | 'shop' | 'history'>('plan');
-  const [syncCode, setSyncCode] = useState<string | null>(syncService.getUserId());
+  
+  // Auto-generate sync code on first load if missing to remove friction
+  const [syncCode, setSyncCode] = useState<string | null>(() => {
+    let code = syncService.getUserId();
+    if (!code) {
+       code = 'CHEF-' + Math.random().toString(36).substring(2, 9).toUpperCase();
+       syncService.setUserId(code);
+    }
+    return code;
+  });
+
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<string | null>(null); // Feedback text
   const [showSyncModal, setShowSyncModal] = useState(false);
@@ -41,6 +51,7 @@ const App: React.FC = () => {
   const guidelineDropdownRef = useRef<HTMLDivElement>(null);
 
   // --- Initial Load & Sync ---
+  // Auto-sync whenever syncCode changes (including on mount)
   useEffect(() => {
     if (syncCode) {
       handleManualPull();
@@ -70,7 +81,7 @@ const App: React.FC = () => {
       setShoppingList(cloudData.shoppingList);
       setSyncStatus("Updated from cloud!");
     } else {
-      setSyncStatus("No cloud data found.");
+      setSyncStatus("Sync ready.");
     }
     setTimeout(() => setSyncStatus(null), 3000);
     setIsSyncing(false);
@@ -242,7 +253,7 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 transition-colors duration-200">
       {/* Header */}
-      <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30 transition-colors duration-200">
+      <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30 transition-colors duration-200 pt-6 md:pt-0 h-auto min-h-[4rem]">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="bg-indigo-600 dark:bg-indigo-500 p-2 rounded-lg shadow-md">
@@ -292,7 +303,9 @@ const App: React.FC = () => {
                         <p className="text-2xl font-mono font-bold mt-1 text-slate-800 dark:text-slate-100">{syncCode}</p>
                     </div>
                     
-                    <p className="text-xs text-slate-500">Sync happens automatically, but you can force it here:</p>
+                    <p className="text-xs text-slate-500">
+                        Sync is active! Use this code on other devices to share your meal plan and cookbook.
+                    </p>
                     
                     <div className="grid grid-cols-2 gap-3">
                          <button 
@@ -322,15 +335,15 @@ const App: React.FC = () => {
                     <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
                         <button 
                             onClick={handleLogout}
-                            className="w-full flex items-center justify-center gap-2 py-2 text-red-500 hover:text-red-600 text-sm font-medium transition-colors"
+                            className="w-full flex items-center justify-center gap-2 py-2 text-slate-500 hover:text-indigo-600 text-sm font-medium transition-colors"
                         >
-                            <LogOut className="w-4 h-4" /> Stop Syncing & Logout
+                            <Edit2 className="w-4 h-4" /> Change / Join Family Code
                         </button>
                     </div>
                 </div>
              ) : (
                 <form onSubmit={handleLogin} className="space-y-4">
-                    <p className="text-sm text-slate-500">Enter a unique Family Code (e.g., your surname or a secret phrase) to sync your data across devices.</p>
+                    <p className="text-sm text-slate-500">Enter a specific Family Code to sync with another device, or generate a new one.</p>
                     <div className="relative">
                         <Key className="absolute left-3 top-3.5 w-5 h-5 text-slate-400" />
                         <input 
@@ -345,7 +358,18 @@ const App: React.FC = () => {
                         type="submit"
                         className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 dark:shadow-none hover:bg-indigo-700 transition-colors"
                     >
-                        Start Syncing
+                        Connect
+                    </button>
+                    <button 
+                        type="button"
+                        onClick={() => {
+                             const code = 'CHEF-' + Math.random().toString(36).substring(2, 9).toUpperCase();
+                             syncService.setUserId(code);
+                             setSyncCode(code);
+                        }}
+                        className="w-full py-2 text-indigo-600 dark:text-indigo-400 text-sm font-medium"
+                    >
+                        Generate New Code
                     </button>
                 </form>
              )}
