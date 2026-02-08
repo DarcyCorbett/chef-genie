@@ -31,6 +31,9 @@ const App: React.FC = () => {
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [tempSyncCode, setTempSyncCode] = useState('');
 
+  // Ref to track if the current update came from the cloud to prevent loops
+  const isRemoteUpdate = useRef(false);
+
   const [settings, setSettings] = useState<GenerationSettings>({
     days: 5,
     meals: { breakfast: false, lunch: false, dinner: true },
@@ -50,35 +53,59 @@ const App: React.FC = () => {
   const [isGuidelineDropdownOpen, setIsGuidelineDropdownOpen] = useState(false);
   const guidelineDropdownRef = useRef<HTMLDivElement>(null);
 
-  // --- Initial Load & Sync ---
-  // Auto-sync whenever syncCode changes (including on mount)
+  // --- Initial Load & Sync Subscription ---
   useEffect(() => {
-    if (syncCode) {
-      handleManualPull();
-    }
+    if (!syncCode) return;
+
+    // Subscribe to real-time updates
+    const unsubscribe = syncService.subscribeToData((cloudData) => {
+      // Flag this as a remote update so we don't push it back
+      isRemoteUpdate.current = true;
+      
+      setHistory(cloudData.history || []);
+      setShoppingList(cloudData.shoppingList || []);
+      if (cloudData.recipes) {
+        setRecipes(cloudData.recipes);
+      }
+      
+      setSyncStatus("Synced!");
+      setTimeout(() => setSyncStatus(null), 2000);
+    });
+
+    return () => unsubscribe();
   }, [syncCode]);
 
-  // --- Persistence ---
+  // --- Persistence & Auto-Push ---
   useEffect(() => {
     localStorage.setItem('chefGenieHistory', JSON.stringify(history));
     
     // Auto-push to cloud if logged in (debounced slightly to prevent spam)
     if (syncCode) {
+      // If this change was triggered by a remote update, do not push back
+      if (isRemoteUpdate.current) {
+         isRemoteUpdate.current = false;
+         return;
+      }
+
       const timeoutId = setTimeout(() => {
-        syncService.pushData({ history, shoppingList });
+        syncService.pushData({ history, shoppingList, recipes });
       }, 2000);
       return () => clearTimeout(timeoutId);
     }
-  }, [history, shoppingList, syncCode]);
+  }, [history, shoppingList, recipes, syncCode]);
 
-  // Handle Sync Pull
+  // Handle Manual Pull (still useful for forcing, but less critical with subscription)
   const handleManualPull = async () => {
     setIsSyncing(true);
     setSyncStatus("Checking cloud...");
     const cloudData = await syncService.pullData();
     if (cloudData) {
-      setHistory(cloudData.history);
-      setShoppingList(cloudData.shoppingList);
+      isRemoteUpdate.current = true; // Prevent loop
+      setHistory(cloudData.history || []);
+      setShoppingList(cloudData.shoppingList || []);
+      if (cloudData.recipes) {
+        setRecipes(cloudData.recipes);
+      }
       setSyncStatus("Updated from cloud!");
     } else {
       setSyncStatus("Sync ready.");
@@ -90,7 +117,7 @@ const App: React.FC = () => {
   const handleManualPush = async () => {
     setIsSyncing(true);
     setSyncStatus("Saving...");
-    const success = await syncService.pushData({ history, shoppingList });
+    const success = await syncService.pushData({ history, shoppingList, recipes });
     if (success) setSyncStatus("Saved to cloud!");
     else setSyncStatus("Save failed.");
     setTimeout(() => setSyncStatus(null), 3000);
