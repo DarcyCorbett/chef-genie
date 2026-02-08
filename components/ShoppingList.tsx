@@ -84,32 +84,34 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ items, onToggleItem, onAddI
 
   return (
     <div className="max-w-3xl mx-auto pb-20">
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 mb-6 transition-colors duration-200">
+      <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 mb-6 transition-colors duration-200">
         <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
             <ShoppingBag className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
             Add Item
         </h2>
-        <form onSubmit={handleAdd} className="flex gap-2">
+        <form onSubmit={handleAdd} className="flex flex-col sm:flex-row gap-3 sm:gap-2">
           <input
             type="text"
             value={newItemName}
             onChange={(e) => setNewItemName(e.target.value)}
             placeholder="Item name (e.g., Milk)"
-            className="flex-1 px-4 py-3 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-colors"
+            className="w-full sm:flex-1 px-4 py-3 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-colors"
           />
-          <input
-            type="text"
-            value={newItemQty}
-            onChange={(e) => setNewItemQty(e.target.value)}
-            placeholder="Qty"
-            className="w-20 px-4 py-3 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-colors"
-          />
-          <button 
-            type="submit"
-            className="bg-indigo-600 dark:bg-indigo-500 text-white p-3 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 transition-colors"
-          >
-            <Plus className="w-6 h-6" />
-          </button>
+          <div className="flex gap-2 sm:contents">
+            <input
+                type="text"
+                value={newItemQty}
+                onChange={(e) => setNewItemQty(e.target.value)}
+                placeholder="Qty"
+                className="flex-1 sm:w-24 px-4 py-3 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-colors"
+            />
+            <button 
+                type="submit"
+                className="bg-indigo-600 dark:bg-indigo-500 text-white p-3 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 transition-colors shrink-0"
+            >
+                <Plus className="w-6 h-6" />
+            </button>
+          </div>
         </form>
       </div>
 
