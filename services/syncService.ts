@@ -1,10 +1,11 @@
-import { HistoryItem, Ingredient } from '../types';
+import { HistoryItem, Ingredient, Recipe } from '../types';
 import { db } from '../firebaseConfig'; 
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot, Firestore } from 'firebase/firestore';
 
 export interface SyncData {
   history: HistoryItem[];
   shoppingList: Ingredient[];
+  recipes: Recipe[];
   lastUpdated: number;
 }
 
@@ -25,6 +26,11 @@ export const syncService = {
    * Pushes local data to the Firebase Cloud
    */
   pushData: async (data: Omit<SyncData, 'lastUpdated'>): Promise<boolean> => {
+    // Gracefully handle missing firebase config
+    if (!db) {
+        return false;
+    }
+
     const userId = syncService.getUserId();
     
     // If user hasn't typed a Sync Code yet, we can't save to cloud
@@ -32,7 +38,7 @@ export const syncService = {
 
     try {
       // We save to a collection called 'households', using the Sync Code as the ID
-      const docRef = doc(db, 'households', userId);
+      const docRef = doc(db as Firestore, 'households', userId);
       
       await setDoc(docRef, {
         ...data,
@@ -48,14 +54,15 @@ export const syncService = {
   },
 
   /**
-   * Pulls data from the Firebase Cloud
+   * Pulls data from the Firebase Cloud (One-time fetch)
    */
   pullData: async (): Promise<SyncData | null> => {
+    if (!db) return null;
     const userId = syncService.getUserId();
     if (!userId) return null;
 
     try {
-      const docRef = doc(db, 'households', userId);
+      const docRef = doc(db as Firestore, 'households', userId);
       const docSnap = await getDoc(docRef);
 
       if (docSnap.exists()) {
@@ -69,5 +76,34 @@ export const syncService = {
       console.error('Firebase Sync pull failed', e);
       return null;
     }
+  },
+
+  /**
+   * Subscribes to real-time updates from the Cloud
+   */
+  subscribeToData: (onDataReceived: (data: SyncData) => void) => {
+    if (!db) return () => {}; 
+    const userId = syncService.getUserId();
+    if (!userId) return () => {};
+
+    const docRef = doc(db as Firestore, 'households', userId);
+    
+    // onSnapshot sets up a continuous listener
+    return onSnapshot(docRef, (docSnap) => {
+      // Check if the write is local (latency compensation). 
+      // We usually want to ignore local writes in the listener to avoid loopiness,
+      // although checking for data equality in App.tsx also helps.
+      if (docSnap.metadata.hasPendingWrites) {
+        return; 
+      }
+
+      if (docSnap.exists()) {
+        const data = docSnap.data() as SyncData;
+        console.log("Real-time update received!");
+        onDataReceived(data);
+      }
+    }, (error) => {
+        console.error("Sync subscription error:", error);
+    });
   }
 };
