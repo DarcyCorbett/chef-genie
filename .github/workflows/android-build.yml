@@ -1,0 +1,54 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch: # Allows you to run this manually with a click
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Install Dependencies
+        run: |
+          npm install
+          # We install Capacitor here because it might not be in your package.json yet
+          npm install @capacitor/core @capacitor/cli @capacitor/android
+
+      - name: Build Web Assets
+        run: npm run build
+        env:
+          # This injects the key you saved in Step 1 into the app
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+      - name: Initialize Capacitor
+        run: |
+          # We initialize a fresh Android project
+          npx cap init ChefGenie com.darcycorbett.chefgenie --web-dir=dist
+          npx cap add android
+
+      - name: Build Android APK
+        run: |
+          cd android
+          # This gives permission to run the build tool
+          chmod +x gradlew
+          # This builds the actual APK file
+          ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: chef-genie-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
