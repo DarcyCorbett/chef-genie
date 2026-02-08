@@ -29,7 +29,6 @@ jobs:
       - name: Build Web Assets
         run: npm run build
         env:
-          # UPDATED: Matches the variable name in your vite.config.ts
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
       - name: Initialize Capacitor
@@ -37,11 +36,20 @@ jobs:
           npx cap init ChefGenie com.darcycorbett.chefgenie --web-dir=dist
           npx cap add android
 
+      # --- NEW FIX STEP STARTS HERE ---
+      - name: Upgrade Gradle (Fix Bouncy Castle Error)
+        run: |
+          cd android/gradle/wrapper
+          # Force upgrade from 8.2.1 to 8.6 to handle the new library format
+          sed -i 's/gradle-8.2.1-all.zip/gradle-8.6-all.zip/' gradle-wrapper.properties
+      # --- NEW FIX STEP ENDS HERE ---
+
       - name: Build Android APK
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug
+          # We clean first to ensure the new Gradle version takes over fresh
+          ./gradlew clean assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
