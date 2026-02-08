@@ -36,7 +36,6 @@ jobs:
           npx cap init ChefGenie com.darcycorbett.chefgenie --web-dir=dist
           npx cap add android
 
-      # --- UPDATED FIX STEP ---
       - name: Update Android Build Settings
         run: |
           cd android
@@ -47,9 +46,23 @@ jobs:
           cd ../..
 
           # 2. Fix "Vanilla Ice Cream" Error (Update SDK to 35)
-          # We use sed to replace the default version numbers in variables.gradle
           sed -i 's/compileSdkVersion = .*/compileSdkVersion = 35/' variables.gradle
           sed -i 's/targetSdkVersion = .*/targetSdkVersion = 35/' variables.gradle
+
+          # 3. Fix Kotlin Duplicate Class Error (Force Alignment)
+          # We append a rule to build.gradle that forces all Kotlin libs to version 1.8.22
+          cat >> build.gradle <<EOF
+          
+          allprojects {
+              configurations.all {
+                  resolutionStrategy.eachDependency { details ->
+                      if (details.requested.group == 'org.jetbrains.kotlin' && details.requested.name.startsWith('kotlin-stdlib')) {
+                          details.useVersion '1.8.22'
+                      }
+                  }
+              }
+          }
+          EOF
 
       - name: Build Android APK
         run: |
