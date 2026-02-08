@@ -36,19 +36,25 @@ jobs:
           npx cap init ChefGenie com.darcycorbett.chefgenie --web-dir=dist
           npx cap add android
 
-      # --- NEW FIX STEP STARTS HERE ---
-      - name: Upgrade Gradle (Fix Bouncy Castle Error)
+      # --- UPDATED FIX STEP ---
+      - name: Update Android Build Settings
         run: |
-          cd android/gradle/wrapper
-          # Force upgrade from 8.2.1 to 8.6 to handle the new library format
+          cd android
+          
+          # 1. Fix Bouncy Castle Error (Upgrade Gradle to 8.6)
+          cd gradle/wrapper
           sed -i 's/gradle-8.2.1-all.zip/gradle-8.6-all.zip/' gradle-wrapper.properties
-      # --- NEW FIX STEP ENDS HERE ---
+          cd ../..
+
+          # 2. Fix "Vanilla Ice Cream" Error (Update SDK to 35)
+          # We use sed to replace the default version numbers in variables.gradle
+          sed -i 's/compileSdkVersion = .*/compileSdkVersion = 35/' variables.gradle
+          sed -i 's/targetSdkVersion = .*/targetSdkVersion = 35/' variables.gradle
 
       - name: Build Android APK
         run: |
           cd android
           chmod +x gradlew
-          # We clean first to ensure the new Gradle version takes over fresh
           ./gradlew clean assembleDebug
 
       - name: Upload APK
