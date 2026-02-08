@@ -1,0 +1,402 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { Recipe, Ingredient, HistoryItem, GenerationSettings } from './types';
+import { generateMealPlan, regenerateRecipes } from './services/geminiService';
+import RecipeList from './components/RecipeList';
+import ShoppingList from './components/ShoppingList';
+import RecipeHistory from './components/RecipeHistory';
+import { Utensils, ShoppingCart, BookHeart, Sparkles, ChevronDown, Check } from 'lucide-react';
+
+const GUIDELINE_OPTIONS = [
+  'Kid Friendly',
+  'Healthy',
+  'Vegetarian',
+  'Vegan',
+  'Low Carb',
+  'Mediterranean',
+  'Asian',
+  'Mexican',
+  'Italian',
+  'Quick & Easy',
+  'Budget Friendly'
+];
+
+const App: React.FC = () => {
+  // --- State ---
+  const [activeTab, setActiveTab] = useState<'plan' | 'shop' | 'history'>('plan');
+  
+  // Settings
+  const [settings, setSettings] = useState<GenerationSettings>({
+    days: 5,
+    meals: { breakfast: false, lunch: false, dinner: true },
+    guidelines: []
+  });
+
+  // Data
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [selectedRecipeIds, setSelectedRecipeIds] = useState<string[]>([]);
+  const [shoppingList, setShoppingList] = useState<Ingredient[]>([]);
+  const [history, setHistory] = useState<HistoryItem[]>(() => {
+    const saved = localStorage.getItem('chefGenieHistory');
+    try {
+        return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+        return [];
+    }
+  });
+
+  // UI State
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isGuidelineDropdownOpen, setIsGuidelineDropdownOpen] = useState(false);
+  const guidelineDropdownRef = useRef<HTMLDivElement>(null);
+
+  // --- Persistence ---
+  useEffect(() => {
+    localStorage.setItem('chefGenieHistory', JSON.stringify(history));
+  }, [history]);
+
+  // Click outside listener for dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (guidelineDropdownRef.current && !guidelineDropdownRef.current.contains(event.target as Node)) {
+        setIsGuidelineDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // --- Handlers: Generation ---
+  const handleGenerate = async () => {
+    // Validate inputs
+    if (settings.days < 1 || settings.days > 14) {
+        setError("Please choose between 1 and 14 days.");
+        return;
+    }
+    if (!settings.meals.breakfast && !settings.meals.lunch && !settings.meals.dinner) {
+        setError("Please select at least one meal type.");
+        return;
+    }
+
+    setIsGenerating(true);
+    setError(null);
+    try {
+      const newRecipes = await generateMealPlan(settings.days, settings.meals, settings.guidelines, history);
+      setRecipes(newRecipes);
+      setSelectedRecipeIds([]);
+      
+      // Update shopping list immediately upon generation
+      const newIngredients = newRecipes.flatMap(r => r.ingredients);
+      setShoppingList(newIngredients.map(i => ({...i, checked: false})));
+      
+    } catch (e) {
+      setError("Failed to generate recipes. Please try again.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleRegenerate = async (options: string[]) => {
+    setIsGenerating(true);
+    try {
+      const updatedRecipes = await regenerateRecipes(recipes, selectedRecipeIds, options);
+      setRecipes(updatedRecipes);
+      setSelectedRecipeIds([]);
+      
+      // Re-calculate shopping list
+      const newIngredients = updatedRecipes.flatMap(r => r.ingredients);
+      
+      // Attempt to preserve checked state of existing items that match strictly by name
+      setShoppingList(prevList => {
+          const checkedMap = new Set(prevList.filter(i => i.checked).map(i => i.name));
+          return newIngredients.map(ing => ({
+              ...ing,
+              checked: checkedMap.has(ing.name)
+          }));
+      });
+
+    } catch (e) {
+      setError("Failed to regenerate recipes.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // --- Handlers: Settings ---
+  const toggleGuideline = (option: string) => {
+    setSettings(prev => ({
+        ...prev,
+        guidelines: prev.guidelines.includes(option)
+            ? prev.guidelines.filter(g => g !== option)
+            : [...prev.guidelines, option]
+    }));
+  };
+
+  // --- Handlers: Interaction ---
+  const toggleRecipeSelection = (id: string) => {
+    setSelectedRecipeIds(prev => 
+      prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
+    );
+  };
+
+  const handleCommitToHistory = () => {
+    const newHistoryItems: HistoryItem[] = recipes.map(r => ({
+        ...r,
+        originalId: r.id,
+        id: r.id + Date.now(), // Ensure unique ID for history
+        isStarred: false,
+        dateAdded: new Date().toISOString()
+    }));
+    
+    setHistory(prev => [...prev, ...newHistoryItems]);
+    setActiveTab('history'); 
+  };
+
+  const toggleHistoryStar = (id: string) => {
+    setHistory(prev => prev.map(item => 
+        item.id === id ? { ...item, isStarred: !item.isStarred } : item
+    ));
+  };
+
+  // --- Handlers: Shopping List ---
+  const toggleShoppingItem = (name: string) => {
+    setShoppingList(prev => prev.map(item => 
+      item.name === name ? { ...item, checked: !item.checked } : item
+    ));
+  };
+
+  const addShoppingItem = (item: Ingredient) => {
+    setShoppingList(prev => [...prev, item]);
+  };
+
+  const clearShoppingList = () => {
+      setShoppingList([]);
+  };
+
+  // --- Helper Components ---
+  const NavButton = ({ tab, icon: Icon, label, showBadge = false, badgeCount = 0 }: any) => (
+      <button 
+        onClick={() => setActiveTab(tab)}
+        className={`relative px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2 
+            ${activeTab === tab 
+                ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm' 
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+            }`}
+      >
+        <Icon className="w-5 h-5" />
+        <span className="hidden md:inline">{label}</span>
+        {showBadge && badgeCount > 0 && (
+            <span className="bg-indigo-600 dark:bg-indigo-500 text-white text-[10px] px-1.5 py-0.5 rounded-full absolute -top-1 -right-1 md:top-0 md:right-0 md:relative">
+                {badgeCount}
+            </span>
+        )}
+      </button>
+  );
+
+  const MobileNavButton = ({ tab, icon: Icon, label, showBadge = false, badgeCount = 0 }: any) => (
+      <button 
+        onClick={() => setActiveTab(tab)}
+        className={`relative flex flex-col items-center justify-center py-2 flex-1 transition-colors
+            ${activeTab === tab 
+                ? 'text-indigo-600 dark:text-indigo-400' 
+                : 'text-slate-500 dark:text-slate-500'
+            }`}
+      >
+        <div className={`p-1.5 rounded-full ${activeTab === tab ? 'bg-indigo-50 dark:bg-indigo-950/50' : ''}`}>
+             <Icon className="w-6 h-6" />
+        </div>
+        <span className="text-[10px] font-medium mt-1">{label}</span>
+        {showBadge && badgeCount > 0 && (
+            <span className="absolute top-1 right-1/4 bg-red-500 text-white text-[10px] min-w-[16px] h-4 rounded-full flex items-center justify-center px-0.5 border-2 border-white dark:border-slate-900">
+                {badgeCount}
+            </span>
+        )}
+      </button>
+  );
+
+  // --- Render ---
+  return (
+    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 transition-colors duration-200">
+      {/* Header */}
+      <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30 transition-colors duration-200">
+        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="bg-indigo-600 dark:bg-indigo-500 p-2 rounded-lg shadow-md">
+                <Utensils className="w-6 h-6 text-white" />
+            </div>
+            <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-violet-600 dark:from-indigo-400 dark:to-violet-400">
+              ChefGenie
+            </h1>
+          </div>
+          
+          {/* Desktop Nav */}
+          <nav className="hidden md:flex gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+            <NavButton tab="plan" icon={Utensils} label="Meal Plan" />
+            <NavButton tab="shop" icon={ShoppingCart} label="Shop" showBadge={true} badgeCount={shoppingList.filter(i => !i.checked).length} />
+            <NavButton tab="history" icon={BookHeart} label="Cookbook" />
+          </nav>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="flex-1 max-w-6xl mx-auto w-full p-4 md:p-6 pb-24 md:pb-6">
+        
+        {/* TAB 1: MEAL PLAN */}
+        {activeTab === 'plan' && (
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* Generator Controls */}
+            <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 transition-colors duration-200">
+              <div className="grid md:grid-cols-4 gap-6 items-end">
+                <div className="md:col-span-1">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Days to Plan</label>
+                  <input 
+                    type="number" 
+                    min="1" 
+                    max="14" 
+                    value={settings.days} 
+                    onChange={(e) => setSettings({...settings, days: parseInt(e.target.value) || 0})}
+                    className="w-full px-4 py-3 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-colors"
+                  />
+                </div>
+                
+                <div className="md:col-span-2 space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Meals per Day</label>
+                        <div className="flex flex-wrap gap-3">
+                            {(['breakfast', 'lunch', 'dinner'] as const).map(meal => (
+                            <label key={meal} className="flex items-center gap-2 cursor-pointer px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition-colors">
+                                <input 
+                                type="checkbox"
+                                checked={settings.meals[meal]}
+                                onChange={(e) => setSettings({
+                                    ...settings, 
+                                    meals: { ...settings.meals, [meal]: e.target.checked }
+                                })}
+                                className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900"
+                                />
+                                <span className="capitalize text-slate-700 dark:text-slate-200 font-medium">{meal}</span>
+                            </label>
+                            ))}
+                        </div>
+                    </div>
+                    
+                    <div>
+                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Guidelines</label>
+                         <div className="relative" ref={guidelineDropdownRef}>
+                             <button 
+                                onClick={() => setIsGuidelineDropdownOpen(!isGuidelineDropdownOpen)}
+                                className="w-full flex items-center justify-between px-4 py-3 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                             >
+                                 <span className="truncate">
+                                     {settings.guidelines.length === 0 
+                                        ? "Select preferences (optional)" 
+                                        : `${settings.guidelines.length} selected (${settings.guidelines[0]}...)`
+                                     }
+                                 </span>
+                                 <ChevronDown className={`w-4 h-4 transition-transform ${isGuidelineDropdownOpen ? 'rotate-180' : ''}`} />
+                             </button>
+
+                             {isGuidelineDropdownOpen && (
+                                 <div className="absolute z-20 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl max-h-60 overflow-y-auto p-1 custom-scrollbar">
+                                     {GUIDELINE_OPTIONS.map(opt => (
+                                         <label key={opt} className="flex items-center gap-2 px-3 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-md cursor-pointer">
+                                             <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${settings.guidelines.includes(opt) ? 'bg-indigo-600 border-indigo-600 dark:bg-indigo-500 dark:border-indigo-500' : 'border-slate-300 dark:border-slate-600'}`}>
+                                                 {settings.guidelines.includes(opt) && <Check className="w-3.5 h-3.5 text-white" />}
+                                             </div>
+                                             <input 
+                                                 type="checkbox" 
+                                                 className="hidden"
+                                                 checked={settings.guidelines.includes(opt)}
+                                                 onChange={() => toggleGuideline(opt)}
+                                             />
+                                             <span className="text-slate-700 dark:text-slate-200 text-sm">{opt}</span>
+                                         </label>
+                                     ))}
+                                 </div>
+                             )}
+                         </div>
+                    </div>
+                </div>
+
+                <div className="md:col-span-1">
+                  <button 
+                    onClick={handleGenerate}
+                    disabled={isGenerating}
+                    className="w-full h-12 bg-gradient-to-r from-indigo-600 to-violet-600 dark:from-indigo-500 dark:to-violet-500 text-white rounded-lg font-bold shadow-lg shadow-indigo-200 dark:shadow-none hover:shadow-indigo-300 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                  >
+                    {isGenerating ? (
+                        <>
+                            <Sparkles className="w-5 h-5 animate-spin" />
+                            <span>Thinking...</span>
+                        </>
+                    ) : (
+                        <>
+                            <Sparkles className="w-5 h-5" />
+                            <span>Generate</span>
+                        </>
+                    )}
+                  </button>
+                </div>
+              </div>
+              {error && <p className="text-red-500 dark:text-red-400 text-sm mt-4 text-center bg-red-50 dark:bg-red-950/30 p-2 rounded">{error}</p>}
+            </div>
+
+            {/* Recipe List */}
+            <RecipeList 
+              recipes={recipes} 
+              selectedRecipeIds={selectedRecipeIds}
+              onToggleSelect={toggleRecipeSelection}
+              onRegenerate={handleRegenerate}
+              isRegenerating={isGenerating}
+              onCommit={handleCommitToHistory}
+            />
+          </div>
+        )}
+
+        {/* TAB 2: SHOPPING LIST */}
+        {activeTab === 'shop' && (
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <ShoppingList 
+              items={shoppingList}
+              onToggleItem={toggleShoppingItem}
+              onAddItem={addShoppingItem}
+              onClearList={clearShoppingList}
+            />
+          </div>
+        )}
+
+        {/* TAB 3: HISTORY */}
+        {activeTab === 'history' && (
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+             <div className="bg-indigo-50 dark:bg-slate-900 border border-indigo-100 dark:border-slate-800 p-6 rounded-xl mb-8 flex items-start gap-4">
+                 <BookHeart className="w-8 h-8 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                 <div>
+                     <h2 className="font-bold text-indigo-900 dark:text-indigo-100 text-lg">My Cookbook</h2>
+                     <p className="text-indigo-700 dark:text-slate-400 mt-1">
+                         This is a collection of all recipes you've marked as 'Done'. 
+                         Star your favorites, and ChefGenie will try to include them in future meal plans!
+                     </p>
+                 </div>
+             </div>
+            <RecipeHistory 
+              history={history}
+              onToggleStar={toggleHistoryStar}
+            />
+          </div>
+        )}
+
+      </main>
+
+      {/* Mobile Bottom Navigation */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 pb-safe pt-1 px-4 flex justify-between z-50">
+         <MobileNavButton tab="plan" icon={Utensils} label="Meal Plan" />
+         <MobileNavButton tab="shop" icon={ShoppingCart} label="Shop" showBadge={true} badgeCount={shoppingList.filter(i => !i.checked).length} />
+         <MobileNavButton tab="history" icon={BookHeart} label="Cookbook" />
+      </nav>
+      {/* Safe area spacer for mobile */}
+      <div className="md:hidden h-safe-bottom bg-white dark:bg-slate-900"></div>
+    </div>
+  );
+};
+
+export default App;

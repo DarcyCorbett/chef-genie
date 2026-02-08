@@ -1,0 +1,5 @@
+{
+  "name": "ChefGenie",
+  "description": "A smart AI recipe generator with shopping list management and favorite recipe tracking.",
+  "requestFramePermissions": []
+}
