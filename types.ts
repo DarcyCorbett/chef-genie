@@ -40,4 +40,6 @@ export interface GenerationSettings {
     dinner: boolean;
   };
   guidelines: string[];
+  adults: number;
+  kids: number;
 }
