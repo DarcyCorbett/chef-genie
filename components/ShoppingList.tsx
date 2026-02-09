@@ -82,6 +82,48 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ items, onToggleItem, onAddI
     setNewItemQty('');
   };
 
+  const formatQuantities = (quantities: string[]): string => {
+    if (quantities.length <= 1) return quantities[0];
+
+    // Attempt to parse quantity strings like "200g", "1.5 cups", "2"
+    const parseQty = (q: string) => {
+      const match = q.trim().match(/^([\d\.]+)\s*(.*)$/);
+      if (match) {
+        return { val: parseFloat(match[1]), unit: match[2].trim().toLowerCase() };
+      }
+      return null;
+    };
+
+    const parsedData = quantities.map(q => ({ original: q, parsed: parseQty(q) }));
+    
+    // Check if all items were successfully parsed
+    const allParsable = parsedData.every(p => p.parsed !== null);
+
+    if (allParsable) {
+       // Check if units are compatible (ignoring plural 's' at the end)
+       const baseUnit = parsedData[0].parsed!.unit.replace(/s$/, '');
+       const consistentUnits = parsedData.every(p => {
+           const u = p.parsed!.unit.replace(/s$/, '');
+           return u === baseUnit || (baseUnit === '' && u === '') || (u === 's' && baseUnit === '');
+       });
+
+       if (consistentUnits) {
+           const total = parsedData.reduce((sum, p) => sum + p.parsed!.val, 0);
+           // Use the unit from the first item that has one, preserve capitalization from original if possible, 
+           // but here we only have lowercase. Let's just use the text from the first item's unit part.
+           // Actually, let's grab the unit text from the first parsed result that has a unit string.
+           const unitStr = parsedData.find(p => p.parsed!.unit.length > 0)?.parsed!.unit || '';
+           
+           // Format: "3 cups (1 + 2)"
+           const parts = parsedData.map(p => p.parsed!.val).join('+');
+           return `${total} ${unitStr} (${parts})`.trim();
+       }
+    }
+
+    // Fallback: simply join them
+    return quantities.join(' + ');
+  };
+
   return (
     <div className="max-w-3xl mx-auto pb-20">
       <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 mb-6 transition-colors duration-200">
@@ -150,7 +192,7 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ items, onToggleItem, onAddI
                       </div>
                     </div>
                     <span className="text-slate-400 dark:text-slate-500 text-sm ml-8 sm:ml-0 whitespace-nowrap">
-                        {item.quantities.join(' + ')}
+                        {formatQuantities(item.quantities)}
                     </span>
                   </div>
                 ))}
@@ -189,7 +231,7 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ items, onToggleItem, onAddI
                         <span className="text-slate-500 dark:text-slate-500 line-through decoration-slate-400 dark:decoration-slate-600">{item.name}</span>
                         </div>
                         <span className="text-slate-400 dark:text-slate-600 text-sm line-through">
-                            {item.quantities.length > 1 ? `${item.quantities.length} items` : item.quantities[0]}
+                            {formatQuantities(item.quantities)}
                         </span>
                     </div>
                     ))}
