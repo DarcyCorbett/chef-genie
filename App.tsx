@@ -5,11 +5,11 @@ import { syncService } from './services/syncService';
 import RecipeList from './components/RecipeList';
 import ShoppingList from './components/ShoppingList';
 import RecipeHistory from './components/RecipeHistory';
-import { Utensils, ShoppingCart, BookHeart, Sparkles, ChevronDown, Check, Cloud, CloudOff, LogOut, Key, CloudUpload, CloudDownload, Edit2 } from 'lucide-react';
+import { Utensils, ShoppingCart, BookHeart, Sparkles, ChevronDown, Check, Cloud, CloudOff, LogOut, Key, CloudUpload, CloudDownload, Edit2, Users, Baby } from 'lucide-react';
 
 const GUIDELINE_OPTIONS = [
   'Kid Friendly', 'Healthy', 'Vegetarian', 'Mediterranean', 'Asian', 'Mexican', 
-  'Italian', 'Quick & Easy', 'Budget Friendly', 'Extravagant', 'No Cook'
+  'Italian', 'Quick & Easy', 'Budget Friendly', 'Extravagant', 'No Cook', 'Chef Made'
 ];
 
 const App: React.FC = () => {
@@ -37,7 +37,9 @@ const App: React.FC = () => {
   const [settings, setSettings] = useState<GenerationSettings>({
     days: 5,
     meals: { breakfast: false, lunch: false, dinner: true },
-    guidelines: []
+    guidelines: [],
+    adults: 2,
+    kids: 2
   });
 
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -152,7 +154,14 @@ const App: React.FC = () => {
     setIsGenerating(true);
     setError(null);
     try {
-      const newRecipes = await generateMealPlan(settings.days, settings.meals, settings.guidelines, history);
+      const newRecipes = await generateMealPlan(
+          settings.days, 
+          settings.meals, 
+          settings.guidelines, 
+          history, 
+          settings.adults, 
+          settings.kids
+      );
       setRecipes(newRecipes);
       setSelectedRecipeIds([]);
       
@@ -410,10 +419,44 @@ const App: React.FC = () => {
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800">
               <div className="grid md:grid-cols-4 gap-6 items-end">
-                <div className="md:col-span-1">
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Days to Plan</label>
-                  <input type="number" min="1" max="14" value={settings.days} onChange={(e) => setSettings({...settings, days: parseInt(e.target.value) || 0})} className="w-full px-4 py-3 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-colors" />
+                {/* Column 1: Days & People */}
+                <div className="md:col-span-1 space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Days to Plan</label>
+                    <input type="number" min="1" max="14" value={settings.days} onChange={(e) => setSettings({...settings, days: parseInt(e.target.value) || 0})} className="w-full px-4 py-3 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-colors" />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 flex items-center gap-1"><Users className="w-3 h-3"/> Adults</label>
+                        <div className="relative">
+                            <select 
+                                value={settings.adults} 
+                                onChange={(e) => setSettings({...settings, adults: parseInt(e.target.value)})}
+                                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none appearance-none"
+                            >
+                                {[0,1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
+                            </select>
+                            <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2 top-2.5 pointer-events-none" />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 flex items-center gap-1"><Baby className="w-3 h-3"/> Kids</label>
+                        <div className="relative">
+                            <select 
+                                value={settings.kids} 
+                                onChange={(e) => setSettings({...settings, kids: parseInt(e.target.value)})}
+                                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none appearance-none"
+                            >
+                                {[0,1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
+                            </select>
+                            <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2 top-2.5 pointer-events-none" />
+                        </div>
+                    </div>
+                  </div>
                 </div>
+
+                {/* Column 2 & 3: Meals & Guidelines */}
                 <div className="md:col-span-2 space-y-4">
                     <div>
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Meals per Day</label>
@@ -449,6 +492,8 @@ const App: React.FC = () => {
                          </div>
                     </div>
                 </div>
+
+                {/* Column 4: Generate Button */}
                 <div className="md:col-span-1">
                   <button onClick={handleGenerate} disabled={isGenerating} className="w-full h-12 bg-gradient-to-r from-indigo-600 to-violet-600 dark:from-indigo-500 dark:to-violet-500 text-white rounded-lg font-bold shadow-lg shadow-indigo-200 dark:shadow-none hover:shadow-indigo-300 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
                     {isGenerating ? <><Sparkles className="w-5 h-5 animate-spin" /><span>Thinking...</span></> : <><Sparkles className="w-5 h-5" /><span>Generate</span></>}
