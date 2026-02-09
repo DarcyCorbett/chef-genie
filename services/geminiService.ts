@@ -66,7 +66,9 @@ export const generateMealPlan = async (
   days: number, 
   meals: { breakfast: boolean; lunch: boolean; dinner: boolean },
   guidelines: string[],
-  starredRecipes: HistoryItem[]
+  starredRecipes: HistoryItem[],
+  adults: number,
+  kids: number
 ): Promise<Recipe[]> => {
   const mealTypes = [];
   if (meals.breakfast) mealTypes.push("Breakfast");
@@ -80,19 +82,27 @@ export const generateMealPlan = async (
     return meals[typeKey] === true && r.isStarred;
   }).map(r => r.name);
     
-  // Pick random count between 1 and 3 (inclusive), limited by how many compatible favorites exist
-  const countToPick = Math.floor(Math.random() * 3) + 1;
+  // Pick random count between 0 and 3 (inclusive)
+  const countToPick = Math.floor(Math.random() * 4);
   const selectedFavorites = compatibleFavorites.sort(() => 0.5 - Math.random()).slice(0, countToPick);
+
+  let specificInstructions = "";
+  if (guidelines.includes('Chef Made')) {
+      specificInstructions += "For 'Chef Made' recipes, create gourmet, restaurant-quality dishes with detailed steps and comprehensive ingredient lists. ";
+  }
 
   const prompt = `
     Generate a meal plan for ${days} days.
     Include the following meal types for each day: ${mealTypes.join(", ")}.
     
+    Portion each recipe for ${adults} adults and ${kids} children.
+    
     Dietary Guidelines & Preferences: ${guidelines.length > 0 ? guidelines.join(", ") : "None specified"}.
+    ${specificInstructions}
     
     IMPORTANT: Use METRIC units (grams, milliliters, celsius) for all measurements.
     
-    ${selectedFavorites.length > 0 ? `You MUST include these ${selectedFavorites.length} favorite recipes (or extremely close variations) in the plan: ${selectedFavorites.join(", ")}.` : ""}
+    ${selectedFavorites.length > 0 ? `You MUST include these ${selectedFavorites.length} favorite recipes (or extremely close variations) in the plan: ${selectedFavorites.join(", ")}. IMPORTANT: For these specific favorite recipes, IGNORE the dietary guidelines provided above and generate them in their traditional/classic style, but adjusted for the requested portion sizes.` : ""}
 
     Ensure the shopping list categories are accurate.
     Provide nutrition facts for every recipe.
