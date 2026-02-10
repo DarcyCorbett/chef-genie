@@ -100,6 +100,14 @@ export const generateMealPlan = async (
     Dietary Guidelines & Preferences: ${guidelines.length > 0 ? guidelines.join(", ") : "None specified"}.
     ${specificInstructions}
     
+    COOKING STYLE & QUALITY (Apply unless 'Chef Made' is selected):
+    - Generate cookbook-quality meals with strong, interesting flavors. Avoid bland or overly basic dishes.
+    - Target a capable home cook.
+    - Meals should be practical for weeknights: generally ready in 20-30 minutes.
+    - Use normal supermarket ingredients (no hard-to-find luxury items).
+    - Do not be extravagant/gourmet (e.g., no truffles, wagyu, complex reductions) unless explicitly requested.
+    - Ingredient lists should be as complete as necessary for good flavor; do not artificially shorten them.
+    
     IMPORTANT: Use METRIC units (grams, milliliters, celsius) for all measurements.
     
     ${selectedFavorites.length > 0 ? `You MUST include these ${selectedFavorites.length} favorite recipes in the plan: ${selectedFavorites.join(", ")}. IMPORTANT: For these specific favorite recipes, IGNORE the dietary guidelines provided above and generate them in their traditional/classic style, but adjusted for the requested portion sizes.` : ""}
@@ -146,6 +154,14 @@ export const regenerateRecipes = async (
   const prompt = `
     I have a list of recipes. I want to REGENERATE specific recipes based on these instructions: "${promptInstruction}".
     
+    COOKING STYLE & QUALITY:
+    - Generate cookbook-quality meals with strong, interesting flavors.
+    - Target a capable home cook.
+    - Meals should be practical for weeknights (ready in ~30-40 mins).
+    - Use normal supermarket ingredients.
+    - Avoid bland, basic, or overly simple dishes.
+    - Ingredient lists should be as complete as necessary for good flavor.
+
     IMPORTANT: Use METRIC units (grams, milliliters, celsius) for all measurements.
 
     Here are the recipes to regenerate (keep the same Day and Meal Type, but change the dish):
