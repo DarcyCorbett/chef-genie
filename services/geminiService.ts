@@ -102,7 +102,7 @@ export const generateMealPlan = async (
     
     IMPORTANT: Use METRIC units (grams, milliliters, celsius) for all measurements.
     
-    ${selectedFavorites.length > 0 ? `You MUST include these ${selectedFavorites.length} favorite recipes (or extremely close variations) in the plan: ${selectedFavorites.join(", ")}. IMPORTANT: For these specific favorite recipes, IGNORE the dietary guidelines provided above and generate them in their traditional/classic style, but adjusted for the requested portion sizes.` : ""}
+    ${selectedFavorites.length > 0 ? `You MUST include these ${selectedFavorites.length} favorite recipes in the plan: ${selectedFavorites.join(", ")}. IMPORTANT: For these specific favorite recipes, IGNORE the dietary guidelines provided above and generate them in their traditional/classic style, but adjusted for the requested portion sizes.` : ""}
 
     Ensure the shopping list categories are accurate.
     Provide nutrition facts for every recipe.
